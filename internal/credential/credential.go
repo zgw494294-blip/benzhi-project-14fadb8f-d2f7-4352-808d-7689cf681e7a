@@ -8,7 +8,6 @@ import (
 	"sort"
 	"stage-rigging-release/internal/rigging"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -37,16 +36,6 @@ type Credential struct {
 	RevokedBy, RevocationReason, PreviousCredentialID string
 	Signature                                         string
 }
-
-type issueDigestEntry struct {
-	digest     string
-	partitions map[string]string
-}
-
-var issueDigestCache = struct {
-	sync.Mutex
-	byCase map[string]issueDigestEntry
-}{byCase: map[string]issueDigestEntry{}}
 
 func Digest(e Evidence) string {
 	p := PartitionDigests(e)
@@ -111,17 +100,10 @@ func clonePartitions(parts map[string]string) map[string]string {
 	return cloned
 }
 func issueDigest(e Evidence) (string, map[string]string) {
-	issueDigestCache.Lock()
-	defer issueDigestCache.Unlock()
-	if cached, ok := issueDigestCache.byCase[e.Case.ID]; ok {
-		return cached.digest, clonePartitions(cached.partitions)
-	}
 	parts := PartitionDigests(e)
 	b, _ := json.Marshal(parts)
 	h := sha256.Sum256(b)
-	entry := issueDigestEntry{digest: hex.EncodeToString(h[:]), partitions: parts}
-	issueDigestCache.byCase[e.Case.ID] = entry
-	return entry.digest, clonePartitions(entry.partitions)
+	return hex.EncodeToString(h[:]), clonePartitions(parts)
 }
 func Issue(e Evidence, by string, from, until time.Time, conditions []string) Credential {
 	d, parts := issueDigest(e)
