@@ -27,10 +27,14 @@ func (a *App) AddPoint(c rigging.Case, p rigging.Point) error {
 	if err := rigging.ValidatePoint(p); err != nil {
 		return err
 	}
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return errors.New("案卷不存在")
+	}
 	a.Store.AddPoint(p)
-	c.Revision++
-	c.UpdatedAt = time.Now()
-	a.Store.PutCase(c)
+	current.Revision++
+	current.UpdatedAt = time.Now()
+	a.Store.PutCase(current)
 	return nil
 }
 func (a *App) AddEquipment(c rigging.Case, e rigging.Equipment) error {
@@ -38,10 +42,14 @@ func (a *App) AddEquipment(c rigging.Case, e rigging.Equipment) error {
 	if err := rigging.ValidateEquipment(e, time.Now()); err != nil {
 		return err
 	}
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return errors.New("案卷不存在")
+	}
 	a.Store.AddEquipment(e)
-	c.Revision++
-	c.UpdatedAt = time.Now()
-	a.Store.PutCase(c)
+	current.Revision++
+	current.UpdatedAt = time.Now()
+	a.Store.PutCase(current)
 	return nil
 }
 func (a *App) Evaluate(c rigging.Case) (rigging.Evaluation, error) {
@@ -49,22 +57,31 @@ func (a *App) Evaluate(c rigging.Case) (rigging.Evaluation, error) {
 	if err != nil {
 		return ev, err
 	}
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return ev, errors.New("案卷不存在")
+	}
 	ev.CaseID = c.ID
 	ev.ID = fmt.Sprintf("eval-%d", time.Now().UnixNano())
-	c.Status = rigging.StatusEvaluated
-	c.Revision++
-	ev.CaseRevision = c.Revision
+	current.Status = rigging.StatusEvaluated
+	current.Revision++
+	ev.CaseRevision = current.Revision
 	a.Store.PutEvaluation(ev)
-	c.UpdatedAt = time.Now()
-	a.Store.PutCase(c)
+	current.UpdatedAt = time.Now()
+	a.Store.PutCase(current)
 	return ev, nil
 }
 func (a *App) Observe(c rigging.Case, pointID, typ, desc string, value float64, pass bool) rigging.Finding {
 	f := rigging.FindingFromObservation(c.ID, pointID, typ, desc, value, pass)
 	a.Store.AddFinding(f)
-	c.Status = rigging.StatusRehearsal
-	c.Revision++
-	a.Store.PutCase(c)
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return f
+	}
+	current.Status = rigging.StatusRehearsal
+	current.Revision++
+	current.UpdatedAt = time.Now()
+	a.Store.PutCase(current)
 	return f
 }
 func (a *App) Remediate(c rigging.Case, findingID, action string) error {
@@ -83,9 +100,14 @@ func (a *App) Remediate(c rigging.Case, findingID, action string) error {
 	r.RetestResult = "待复验"
 	a.Store.AddRemediation(r)
 	a.Store.UpdateFinding(c.ID, findingID, "closed")
-	c.Status = rigging.StatusRemediation
-	c.Revision++
-	a.Store.PutCase(c)
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return errors.New("案卷不存在")
+	}
+	current.Status = rigging.StatusRemediation
+	current.Revision++
+	current.UpdatedAt = time.Now()
+	a.Store.PutCase(current)
 	return nil
 }
 func (a *App) SubmitReview(c rigging.Case, reviewer, decision, reason string) error {
@@ -99,13 +121,18 @@ func (a *App) SubmitReview(c rigging.Case, reviewer, decision, reason string) er
 	}
 	r := rigging.Review{ID: fmt.Sprintf("review-%d", time.Now().UnixNano()), CaseID: c.ID, ReviewerID: reviewer, Decision: decision, Reason: reason, CreatedAt: time.Now()}
 	a.Store.PutReview(r)
-	if decision == "批准" {
-		c.Status = rigging.StatusApproved
-	} else {
-		c.Status = rigging.StatusDraft
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return errors.New("案卷不存在")
 	}
-	c.Revision++
-	a.Store.PutCase(c)
+	if decision == "批准" {
+		current.Status = rigging.StatusApproved
+	} else {
+		current.Status = rigging.StatusDraft
+	}
+	current.Revision++
+	current.UpdatedAt = time.Now()
+	a.Store.PutCase(current)
 	return nil
 }
 func (a *App) Freeze(c rigging.Case, issuer string) (credential.Credential, error) {
@@ -119,8 +146,12 @@ func (a *App) Freeze(c rigging.Case, issuer string) (credential.Credential, erro
 	if c.PerformanceEndsAt.Before(c.PerformanceStartsAt) {
 		return credential.Credential{}, errors.New("凭据有效时段与演出时段不一致")
 	}
+	current, ok := a.Store.GetCase(c.ID)
+	if !ok {
+		return credential.Credential{}, errors.New("案卷不存在")
+	}
 	ev.Case.Status = rigging.StatusFrozen
-	ev.Case.Revision = c.Revision + 1
+	ev.Case.Revision = current.Revision + 1
 	ev.Case.UpdatedAt = time.Now()
 	cr := credential.Issue(ev, issuer, c.PerformanceStartsAt, c.PerformanceEndsAt, []string{"按冻结方案执行", "开演前完成现场复核"})
 	chain := a.Store.Credentials(c.ID)
