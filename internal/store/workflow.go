@@ -174,20 +174,35 @@ func (s *Store) AdoptScenario(caseID, id, requestID string, ev rigging.Evaluatio
 	return ev, s.persistLocked()
 }
 
-func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) {
+func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	prevCase := s.cases[o.CaseID]
+	prevObs := len(s.observations[o.CaseID])
+	prevFindings := len(s.findings[o.CaseID])
+	prevAudit := len(s.audit[o.CaseID])
+	prevAuditRecords := len(s.auditRecords[o.CaseID])
+	prevSeq := s.nextAuditSeq
 	s.observations[o.CaseID] = append(s.observations[o.CaseID], o)
 	if f != nil {
 		s.findings[o.CaseID] = append(s.findings[o.CaseID], *f)
 	}
-	c := s.cases[o.CaseID]
+	c := prevCase
 	c.Status = rigging.StatusRehearsal
 	c.Revision++
 	c.UpdatedAt = time.Now()
 	s.cases[o.CaseID] = c
 	s.auditLocked(o.CaseID, "rehearsal", o.ID, "", o.SubmittedBy, "提交彩排清单观察", c.Revision)
-	_ = s.persistLocked()
+	if err := s.persistLocked(); err != nil {
+		s.cases[o.CaseID] = prevCase
+		s.observations[o.CaseID] = s.observations[o.CaseID][:prevObs]
+		s.findings[o.CaseID] = s.findings[o.CaseID][:prevFindings]
+		s.audit[o.CaseID] = s.audit[o.CaseID][:prevAudit]
+		s.auditRecords[o.CaseID] = s.auditRecords[o.CaseID][:prevAuditRecords]
+		s.nextAuditSeq = prevSeq
+		return err
+	}
+	return nil
 }
 func (s *Store) Observations(caseID string) []rigging.Observation {
 	s.mu.Lock()
