@@ -9,6 +9,7 @@ import (
 	"sort"
 	"stage-rigging-release/internal/credential"
 	"stage-rigging-release/internal/rigging"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -251,9 +252,27 @@ func (a *App) CreateRemediation(caseID, findingID, action, actor string, changes
 		return rigging.RemediationPlan{}, errors.New("整改必须包含结构化前后差异")
 	}
 	validTarget := false
+	pointByID := map[string]bool{}
+	for _, p := range a.Store.Points(caseID) {
+		pointByID[p.ID] = true
+	}
+	numericPointFields := map[string]bool{"plannedStaticLoadKg": true, "slingAngleDegrees": true, "dynamicFactor": true}
 	for _, ch := range changes {
 		if strings.TrimSpace(ch.Before) == strings.TrimSpace(ch.After) {
 			return rigging.RemediationPlan{}, errors.New("整改前后没有实际变化")
+		}
+		// 针对吊点数值字段的整改必须写入可解析的数值，且目标必须是现有点，
+		// 否则 AddPlan 会静默跳过字段更新却仍流转状态、删除正式评估并生成复验。
+		if numericPointFields[ch.Field] {
+			if !pointByID[ch.TargetID] {
+				return rigging.RemediationPlan{}, errors.New("整改目标吊点不存在或不可数值调整")
+			}
+			if _, err := strconv.ParseFloat(strings.TrimSpace(ch.Before), 64); err != nil {
+				return rigging.RemediationPlan{}, errors.New("整改前值不是有效数值")
+			}
+			if _, err := strconv.ParseFloat(strings.TrimSpace(ch.After), 64); err != nil {
+				return rigging.RemediationPlan{}, errors.New("整改后值不是有效数值")
+			}
 		}
 		if ch.TargetID == finding.PointID {
 			validTarget = true
