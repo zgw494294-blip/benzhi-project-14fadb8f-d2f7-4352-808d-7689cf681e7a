@@ -85,13 +85,19 @@ func ValidateCase(c Case) error {
 	return nil
 }
 func ValidatePoint(p Point) error {
-	if p.Label == "" || p.RatedLoadKg <= 0 || p.PlannedStaticLoadKg <= 0 {
-		return errors.New("吊点字段或承载必须有效")
+	if p.Label == "" {
+		return errors.New("吊点标签不能为空")
 	}
-	if p.SlingAngleDegrees <= 0 || p.SlingAngleDegrees >= 90 {
+	if math.IsNaN(p.RatedLoadKg) || math.IsInf(p.RatedLoadKg, 0) || p.RatedLoadKg <= 0 {
+		return errors.New("额定承载必须为有效正数")
+	}
+	if math.IsNaN(p.PlannedStaticLoadKg) || math.IsInf(p.PlannedStaticLoadKg, 0) || p.PlannedStaticLoadKg <= 0 {
+		return errors.New("预定静载必须为有效正数")
+	}
+	if math.IsNaN(p.SlingAngleDegrees) || math.IsInf(p.SlingAngleDegrees, 0) || p.SlingAngleDegrees <= 0 || p.SlingAngleDegrees >= 90 {
 		return errors.New("吊索角度必须在0到90度之间")
 	}
-	if p.DynamicFactor < 1 {
+	if math.IsNaN(p.DynamicFactor) || math.IsInf(p.DynamicFactor, 0) || p.DynamicFactor < 1 {
 		return errors.New("动态系数不能小于1")
 	}
 	return nil
@@ -113,20 +119,26 @@ func ValidateEquipment(e Equipment, now time.Time) error {
 }
 func Evaluate(points []Point) Evaluation {
 	e := Evaluation{EvaluatedAt: time.Now(), Outcome: "通过", MinimumMarginPercent: math.MaxFloat64}
+	anyFiniteMargin := false
 	for _, p := range points {
 		eff := p.PlannedStaticLoadKg * p.DynamicFactor / math.Sin(p.SlingAngleDegrees*math.Pi/180)
 		margin := (p.RatedLoadKg - eff) / p.RatedLoadKg * 100
-		r := PointResult{PointID: p.ID, EffectiveLoadKg: eff, CapacityKg: p.RatedLoadKg, MarginPercent: margin, OverLimit: margin < 0}
+		invalid := math.IsNaN(eff) || math.IsInf(eff, 0) || math.IsNaN(margin) || math.IsInf(margin, 0)
+		overLimit := invalid || margin < 0
+		r := PointResult{PointID: p.ID, EffectiveLoadKg: eff, CapacityKg: p.RatedLoadKg, MarginPercent: margin, OverLimit: overLimit}
 		e.PointResults = append(e.PointResults, r)
-		if margin < e.MinimumMarginPercent {
-			e.MinimumMarginPercent = margin
+		if !invalid {
+			anyFiniteMargin = true
+			if margin < e.MinimumMarginPercent {
+				e.MinimumMarginPercent = margin
+			}
 		}
-		if margin < 0 {
+		if overLimit {
 			e.Outcome = "阻断"
 			e.OverLimitPointIDs = append(e.OverLimitPointIDs, p.ID)
 		}
 	}
-	if len(points) == 0 {
+	if len(points) == 0 || !anyFiniteMargin {
 		e.MinimumMarginPercent = 0
 		e.Outcome = "阻断"
 	}

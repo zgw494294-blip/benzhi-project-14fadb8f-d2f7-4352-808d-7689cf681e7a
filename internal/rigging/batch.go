@@ -49,16 +49,16 @@ func NormalizeAndValidatePoints(existing, submitted []Point, caseID string, base
 		if math.IsNaN(p.YMillimeters) || math.IsInf(p.YMillimeters, 0) || math.Abs(p.YMillimeters) > 100000 {
 			result.Problems = append(result.Problems, pointProblem(row, p.ID, "yMillimeters", "invalid_coordinate", "Y坐标必须是绝对值不超过100000毫米的有限数"))
 		}
-		if p.RatedLoadKg <= 0 {
+		if math.IsNaN(p.RatedLoadKg) || math.IsInf(p.RatedLoadKg, 0) || p.RatedLoadKg <= 0 {
 			result.Problems = append(result.Problems, pointProblem(row, p.ID, "ratedLoadKg", "invalid_capacity", "额定承载必须大于0"))
 		}
-		if p.PlannedStaticLoadKg <= 0 {
+		if math.IsNaN(p.PlannedStaticLoadKg) || math.IsInf(p.PlannedStaticLoadKg, 0) || p.PlannedStaticLoadKg <= 0 {
 			result.Problems = append(result.Problems, pointProblem(row, p.ID, "plannedStaticLoadKg", "invalid_static_load", "预定静载必须大于0"))
 		}
-		if p.SlingAngleDegrees <= 0 || p.SlingAngleDegrees >= 90 {
+		if math.IsNaN(p.SlingAngleDegrees) || math.IsInf(p.SlingAngleDegrees, 0) || p.SlingAngleDegrees <= 0 || p.SlingAngleDegrees >= 90 {
 			result.Problems = append(result.Problems, pointProblem(row, p.ID, "slingAngleDegrees", "invalid_angle", "吊索角度必须大于0且小于90度"))
 		}
-		if p.DynamicFactor < 1 || p.DynamicFactor > 5 {
+		if math.IsNaN(p.DynamicFactor) || math.IsInf(p.DynamicFactor, 0) || p.DynamicFactor < 1 || p.DynamicFactor > 5 {
 			result.Problems = append(result.Problems, pointProblem(row, p.ID, "dynamicFactor", "invalid_dynamic_factor", "动态系数必须在1到5之间"))
 		}
 		before, exists := byID[p.ID]

@@ -85,7 +85,7 @@ func BuildCoverage(c Case, points []Point, equipment []Equipment, assignments []
 				m.Problems = append(m.Problems, CoverageProblem{PointID: p.ID, Path: path, Code: "equipment_type_missing", Message: "缺少器材类型：" + strings.Join(row.MissingTypes, "、")})
 			}
 			row.MarginKg = row.CapacityKg - row.RequiredLoadKg
-			if row.MarginKg < 0 {
+			if math.IsNaN(row.MarginKg) || math.IsInf(row.MarginKg, 0) || row.MarginKg < 0 {
 				row.Complete = false
 				m.Problems = append(m.Problems, CoverageProblem{PointID: p.ID, Path: path, EquipmentID: row.ShortfallEquipmentID, Code: "chain_capacity_insufficient", Message: "链路短板器材能力不足"})
 			}
@@ -123,6 +123,7 @@ func EvaluateWithCoverage(points []Point, matrix CoverageMatrix) Evaluation {
 	e.Outcome = "通过"
 	e.OverLimitPointIDs = nil
 	e.MinimumMarginPercent = math.MaxFloat64
+	anyFiniteMargin := false
 	for i := range e.PointResults {
 		r := &e.PointResults[i]
 		if c, ok := capacity[r.PointID]; ok && c < r.CapacityKg {
@@ -133,16 +134,20 @@ func EvaluateWithCoverage(points []Point, matrix CoverageMatrix) Evaluation {
 		} else {
 			r.MarginPercent = (r.CapacityKg - r.EffectiveLoadKg) / r.CapacityKg * 100
 		}
-		r.OverLimit = r.MarginPercent < 0
-		if r.MarginPercent < e.MinimumMarginPercent {
-			e.MinimumMarginPercent = r.MarginPercent
+		invalid := math.IsNaN(r.MarginPercent) || math.IsInf(r.MarginPercent, 0)
+		r.OverLimit = invalid || r.MarginPercent < 0
+		if !invalid {
+			anyFiniteMargin = true
+			if r.MarginPercent < e.MinimumMarginPercent {
+				e.MinimumMarginPercent = r.MarginPercent
+			}
 		}
 		if r.OverLimit {
 			e.Outcome = "阻断"
 			e.OverLimitPointIDs = append(e.OverLimitPointIDs, r.PointID)
 		}
 	}
-	if len(points) == 0 {
+	if len(points) == 0 || !anyFiniteMargin {
 		e.MinimumMarginPercent = 0
 		e.Outcome = "阻断"
 	}
