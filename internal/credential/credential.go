@@ -65,9 +65,18 @@ func PartitionDigests(e Evidence) map[string]string {
 	legacy := append([]rigging.Remediation{}, e.Remediations...)
 	sort.Slice(legacy, func(i, j int) bool { return legacy[i].ID < legacy[j].ID })
 	plans := append([]rigging.RemediationPlan{}, e.RemediationPlans...)
+	for i := range plans {
+		plans[i].Changes = append([]rigging.StructuredChange{}, plans[i].Changes...)
+		plans[i].Items = append([]rigging.RetestItem{}, plans[i].Items...)
+	}
 	normalizePlanDetails(plans)
 	sort.Slice(plans, func(i, j int) bool { return plans[i].ID < plans[j].ID })
 	rounds := append([]rigging.ReviewRound{}, e.ReviewRounds...)
+	for i := range rounds {
+		rounds[i].Evidence = append([]rigging.EvidenceItem{}, rounds[i].Evidence...)
+		rounds[i].ReturnItems = append([]rigging.ReviewReturnItem{}, rounds[i].ReturnItems...)
+		rounds[i].Contributors = append([]string{}, rounds[i].Contributors...)
+	}
 	normalizeReviewDetails(rounds)
 	sort.Slice(rounds, func(i, j int) bool { return rounds[i].Number < rounds[j].Number })
 	return map[string]string{

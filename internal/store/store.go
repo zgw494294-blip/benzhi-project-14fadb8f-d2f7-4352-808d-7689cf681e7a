@@ -321,7 +321,18 @@ func (s *Store) Snapshot(id string) (credential.Evidence, error) {
 		return credential.Evidence{}, errors.New("缺少载荷评估")
 	}
 	r, _ := s.Review(id)
-	return credential.Evidence{Case: c, Points: s.Points(id), Equipment: s.Equipment(id), Evaluation: e, Findings: s.Findings(id), Remediations: s.Remediations(id), Review: r, Assignments: s.Assignments(id), Observations: s.Observations(id), RemediationPlans: s.Plans(id), ReviewRounds: s.ReviewRounds(id)}, nil
+	plans := s.Plans(id)
+	for i := range plans {
+		plans[i].Changes = append([]rigging.StructuredChange{}, plans[i].Changes...)
+		plans[i].Items = append([]rigging.RetestItem{}, plans[i].Items...)
+	}
+	rounds := s.ReviewRounds(id)
+	for i := range rounds {
+		rounds[i].Evidence = append([]rigging.EvidenceItem{}, rounds[i].Evidence...)
+		rounds[i].ReturnItems = append([]rigging.ReviewReturnItem{}, rounds[i].ReturnItems...)
+		rounds[i].Contributors = append([]string{}, rounds[i].Contributors...)
+	}
+	return credential.Evidence{Case: c, Points: s.Points(id), Equipment: s.Equipment(id), Evaluation: e, Findings: s.Findings(id), Remediations: s.Remediations(id), Review: r, Assignments: s.Assignments(id), Observations: s.Observations(id), RemediationPlans: plans, ReviewRounds: rounds}, nil
 }
 func (s *Store) Health(ctx context.Context) error { return s.db.PingContext(ctx) }
 func marshal(v any) string                        { b, _ := json.Marshal(v); return string(b) }
