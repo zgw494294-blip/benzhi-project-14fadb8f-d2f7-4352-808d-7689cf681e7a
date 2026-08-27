@@ -228,7 +228,20 @@ func (a *App) RehearsalProgress(caseID string) (rigging.RehearsalProgress, error
 	if _, ok := a.Store.GetCase(caseID); !ok {
 		return rigging.RehearsalProgress{}, errors.New("案卷不存在")
 	}
-	return rigging.Checklist(caseID, a.Store.Points(caseID), a.Store.Observations(caseID), a.Store.Findings(caseID)), nil
+	a.progressMu.Lock()
+	defer a.progressMu.Unlock()
+	if cached, ok := a.progressCache[caseID]; ok {
+		return cloneRehearsalProgress(cached), nil
+	}
+	progress := rigging.Checklist(caseID, a.Store.Points(caseID), a.Store.Observations(caseID), a.Store.Findings(caseID))
+	a.progressCache[caseID] = cloneRehearsalProgress(progress)
+	return progress, nil
+}
+
+func cloneRehearsalProgress(progress rigging.RehearsalProgress) rigging.RehearsalProgress {
+	progress.Items = append([]rigging.ChecklistItem(nil), progress.Items...)
+	progress.BlockingReasons = append([]string(nil), progress.BlockingReasons...)
+	return progress
 }
 
 func (a *App) CreateRemediation(caseID, findingID, action, actor string, changes []rigging.StructuredChange) (rigging.RemediationPlan, error) {
