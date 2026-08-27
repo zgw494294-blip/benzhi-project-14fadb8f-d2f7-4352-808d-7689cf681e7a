@@ -6,12 +6,19 @@ import (
 	"stage-rigging-release/internal/credential"
 	"stage-rigging-release/internal/rigging"
 	"stage-rigging-release/internal/store"
+	"sync"
 	"time"
 )
 
-type App struct{ Store *store.Store }
+type App struct {
+	Store         *store.Store
+	batchMu       sync.Mutex
+	batchAttempts map[string]rigging.BatchPointResult
+}
 
-func New(s *store.Store) *App { return &App{Store: s} }
+func New(s *store.Store) *App {
+	return &App{Store: s, batchAttempts: map[string]rigging.BatchPointResult{}}
+}
 func (a *App) CreateCase(show, zone string, start, end time.Time, author string) (rigging.Case, error) {
 	c := rigging.Case{ID: fmt.Sprintf("case-%d", time.Now().UnixNano()), ShowName: show, VenueZone: zone, PerformanceStartsAt: start, PerformanceEndsAt: end, Status: rigging.StatusDraft, Revision: 1, AuthorID: author, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	if e := rigging.ValidateCase(c); e != nil {

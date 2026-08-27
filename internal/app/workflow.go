@@ -43,9 +43,30 @@ func (a *App) PreflightPointBatch(caseID string, baseRevision int, points []rigg
 	}
 	return r, nil
 }
+
+func batchAttemptKey(caseID, requestID string) string {
+	return caseID + "\x00" + requestID
+}
+
+func (a *App) recalledBatchAttempt(caseID, requestID string) (rigging.BatchPointResult, bool) {
+	a.batchMu.Lock()
+	defer a.batchMu.Unlock()
+	r, ok := a.batchAttempts[batchAttemptKey(caseID, requestID)]
+	return r, ok
+}
+
+func (a *App) rememberBatchAttempt(caseID, requestID string, r rigging.BatchPointResult) {
+	a.batchMu.Lock()
+	defer a.batchMu.Unlock()
+	a.batchAttempts[batchAttemptKey(caseID, requestID)] = r
+}
+
 func (a *App) CommitPointBatch(caseID, leaseID, requestID, actor string, baseRevision int, points []rigging.Point) (rigging.BatchPointResult, error) {
 	var prior rigging.BatchPointResult
 	if a.Store.Idempotent(caseID, "points-batch", requestID, &prior) {
+		return prior, nil
+	}
+	if prior, ok := a.recalledBatchAttempt(caseID, requestID); ok {
 		return prior, nil
 	}
 	r, err := a.PreflightPointBatch(caseID, baseRevision, points)
@@ -56,6 +77,7 @@ func (a *App) CommitPointBatch(caseID, leaseID, requestID, actor string, baseRev
 		return r, errors.New("批次预检未通过")
 	}
 	r.RequestID = requestID
+	a.rememberBatchAttempt(caseID, requestID, r)
 	return a.Store.CommitPointBatch(caseID, leaseID, requestID, baseRevision, r, actor)
 }
 
