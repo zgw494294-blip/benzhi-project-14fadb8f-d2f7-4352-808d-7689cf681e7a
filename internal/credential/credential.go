@@ -65,8 +65,10 @@ func PartitionDigests(e Evidence) map[string]string {
 	legacy := append([]rigging.Remediation{}, e.Remediations...)
 	sort.Slice(legacy, func(i, j int) bool { return legacy[i].ID < legacy[j].ID })
 	plans := append([]rigging.RemediationPlan{}, e.RemediationPlans...)
+	normalizePlanDetails(plans)
 	sort.Slice(plans, func(i, j int) bool { return plans[i].ID < plans[j].ID })
 	rounds := append([]rigging.ReviewRound{}, e.ReviewRounds...)
+	normalizeReviewDetails(rounds)
 	sort.Slice(rounds, func(i, j int) bool { return rounds[i].Number < rounds[j].Number })
 	return map[string]string{
 		"case": digestPart(e.Case), "points": digestPart(points), "equipment": digestPart(struct {
@@ -87,6 +89,26 @@ func PartitionDigests(e Evidence) map[string]string {
 		}{e.Review, rounds}),
 	}
 }
+
+func normalizePlanDetails(plans []rigging.RemediationPlan) {
+	for i := range plans {
+		sort.Slice(plans[i].Changes, func(a, b int) bool {
+			return plans[i].Changes[a].TargetID+"\x00"+plans[i].Changes[a].Field < plans[i].Changes[b].TargetID+"\x00"+plans[i].Changes[b].Field
+		})
+		sort.Slice(plans[i].Items, func(a, b int) bool { return plans[i].Items[a].ID < plans[i].Items[b].ID })
+	}
+}
+
+func normalizeReviewDetails(rounds []rigging.ReviewRound) {
+	for i := range rounds {
+		sort.Slice(rounds[i].Evidence, func(a, b int) bool {
+			return rounds[i].Evidence[a].Category+"\x00"+rounds[i].Evidence[a].ObjectID < rounds[i].Evidence[b].Category+"\x00"+rounds[i].Evidence[b].ObjectID
+		})
+		sort.Slice(rounds[i].ReturnItems, func(a, b int) bool { return rounds[i].ReturnItems[a].ID < rounds[i].ReturnItems[b].ID })
+		sort.Strings(rounds[i].Contributors)
+	}
+}
+
 func digestPart(v any) string {
 	b, _ := json.Marshal(v)
 	h := sha256.Sum256(b)
