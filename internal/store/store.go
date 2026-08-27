@@ -150,15 +150,9 @@ func (s *Store) restore(d diskState) {
 	if d.Plans != nil {
 		s.plans = d.Plans
 	}
-	if d.Credentials != nil {
-		s.creds = d.Credentials
-	}
-	if d.CaseCredentials != nil {
-		s.caseCreds = d.CaseCredentials
-	}
-	if d.Frozen != nil {
-		s.frozen = d.Frozen
-	}
+	s.creds = d.Credentials
+	s.caseCreds = d.CaseCredentials
+	s.frozen = d.Frozen
 	if d.Idempotency != nil {
 		s.idempotency = d.Idempotency
 	}
