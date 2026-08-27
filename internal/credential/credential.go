@@ -8,6 +8,7 @@ import (
 	"sort"
 	"stage-rigging-release/internal/rigging"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,16 @@ type Credential struct {
 	RevokedBy, RevocationReason, PreviousCredentialID string
 	Signature                                         string
 }
+
+type issueDigestEntry struct {
+	digest     string
+	partitions map[string]string
+}
+
+var issueDigestCache = struct {
+	sync.Mutex
+	byCase map[string]issueDigestEntry
+}{byCase: map[string]issueDigestEntry{}}
 
 func Digest(e Evidence) string {
 	p := PartitionDigests(e)
@@ -92,10 +103,30 @@ func digestPart(v any) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
+func clonePartitions(parts map[string]string) map[string]string {
+	cloned := make(map[string]string, len(parts))
+	for name, digest := range parts {
+		cloned[name] = digest
+	}
+	return cloned
+}
+func issueDigest(e Evidence) (string, map[string]string) {
+	issueDigestCache.Lock()
+	defer issueDigestCache.Unlock()
+	if cached, ok := issueDigestCache.byCase[e.Case.ID]; ok {
+		return cached.digest, clonePartitions(cached.partitions)
+	}
+	parts := PartitionDigests(e)
+	b, _ := json.Marshal(parts)
+	h := sha256.Sum256(b)
+	entry := issueDigestEntry{digest: hex.EncodeToString(h[:]), partitions: parts}
+	issueDigestCache.byCase[e.Case.ID] = entry
+	return entry.digest, clonePartitions(entry.partitions)
+}
 func Issue(e Evidence, by string, from, until time.Time, conditions []string) Credential {
-	d := Digest(e)
+	d, parts := issueDigest(e)
 	sig := sha256.Sum256([]byte(d + "|" + by))
-	return Credential{ID: fmt.Sprintf("RC-%s-%d", d[:12], time.Now().UnixNano()), CaseID: e.Case.ID, EvidenceDigest: d, PartitionDigests: PartitionDigests(e), FrozenRevision: e.Case.Revision, ValidFrom: from, ValidUntil: until, Conditions: conditions, IssuedBy: by, IssuedAt: time.Now(), Signature: hex.EncodeToString(sig[:])}
+	return Credential{ID: fmt.Sprintf("RC-%s-%d", d[:12], time.Now().UnixNano()), CaseID: e.Case.ID, EvidenceDigest: d, PartitionDigests: parts, FrozenRevision: e.Case.Revision, ValidFrom: from, ValidUntil: until, Conditions: conditions, IssuedBy: by, IssuedAt: time.Now(), Signature: hex.EncodeToString(sig[:])}
 }
 func Verify(c Credential, e Evidence, now time.Time) (string, bool) {
 	if c.RevokedAt != nil {
