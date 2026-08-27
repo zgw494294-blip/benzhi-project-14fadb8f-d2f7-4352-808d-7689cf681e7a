@@ -234,7 +234,7 @@ func (s *Server) caseAction(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		v, f, e := s.App.RecordObservation(id, in.Actor, rigging.Observation{PointID: in.PointID, Type: in.Type, Description: in.Description, SeverityBasis: in.SeverityBasis, Measurements: in.Measurements})
+		v, f, e := s.App.RecordObservationContext(r.Context(), id, in.Actor, rigging.Observation{PointID: in.PointID, Type: in.Type, Description: in.Description, SeverityBasis: in.SeverityBasis, Measurements: in.Measurements})
 		if e != nil {
 			problem(w, 400, "观察提交失败", e, nil)
 			return
@@ -257,7 +257,7 @@ func (s *Server) caseAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		o := rigging.Observation{PointID: in.PointID, Type: in.ObservationType, Description: in.Description, SeverityBasis: "旧接口提交", Measurements: []rigging.Measurement{{Value: in.MeasuredValue, MeasuredAt: time.Now()}}}
-		v, f, e := s.App.RecordObservation(id, c.AuthorID, o)
+		v, f, e := s.App.RecordObservationContext(r.Context(), id, c.AuthorID, o)
 		if e != nil {
 			problem(w, 400, "观察提交失败", e, nil)
 			return

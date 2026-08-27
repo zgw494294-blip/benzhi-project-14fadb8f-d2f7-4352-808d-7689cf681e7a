@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -194,6 +195,9 @@ func (a *App) AdoptScenario(caseID, scenarioID, requestID, actor string) (riggin
 }
 
 func (a *App) RecordObservation(caseID, actor string, o rigging.Observation) (rigging.Observation, *rigging.Finding, error) {
+	return a.RecordObservationContext(context.Background(), caseID, actor, o)
+}
+func (a *App) RecordObservationContext(ctx context.Context, caseID, actor string, o rigging.Observation) (rigging.Observation, *rigging.Finding, error) {
 	c, ok := a.Store.GetCase(caseID)
 	if !ok {
 		return o, nil, errors.New("案卷不存在")
@@ -218,7 +222,7 @@ func (a *App) RecordObservation(caseID, actor string, o rigging.Observation) (ri
 	if err != nil {
 		return o, nil, err
 	}
-	if err = a.Store.AddObservation(judged, f); err != nil {
+	if err = a.Store.AddObservationContext(context.WithoutCancel(ctx), judged, f); err != nil {
 		return o, nil, err
 	}
 	_ = c

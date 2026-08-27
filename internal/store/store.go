@@ -174,12 +174,15 @@ func (s *Store) restore(d diskState) {
 	s.nextAuditSeq = d.NextAuditSeq
 }
 func (s *Store) persistLocked() error {
+	return s.persistLockedContext(context.Background())
+}
+func (s *Store) persistLockedContext(ctx context.Context) error {
 	d := diskState{Cases: s.cases, Points: s.points, Equipment: s.equipment, Evaluations: s.evals, Findings: s.findings, Remediations: s.rems, Reviews: s.reviews, ReviewRounds: s.reviewRounds, Assignments: s.assignments, Scenarios: s.scenarios, Observations: s.observations, Plans: s.plans, Credentials: s.creds, CaseCredentials: s.caseCreds, Frozen: s.frozen, Idempotency: s.idempotency, Leasing: s.leasing, Audit: s.audit, AuditRecords: s.auditRecords, NextAuditSeq: s.nextAuditSeq}
 	b, err := json.Marshal(d)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`INSERT INTO app_state(id,data) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data`, b)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO app_state(id,data) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data`, b)
 	return err
 }
 func (s *Store) auditLocked(caseID, category, objectID, credentialID, actor, message string, revision int) {

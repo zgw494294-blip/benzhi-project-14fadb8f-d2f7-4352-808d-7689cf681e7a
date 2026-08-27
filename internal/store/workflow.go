@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sort"
@@ -175,6 +176,10 @@ func (s *Store) AdoptScenario(caseID, id, requestID string, ev rigging.Evaluatio
 }
 
 func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) error {
+	return s.AddObservationContext(context.Background(), o, f)
+}
+func (s *Store) AddObservationContext(ctx context.Context, o rigging.Observation, f *rigging.Finding) error {
+	ctx = context.WithoutCancel(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.observations[o.CaseID] = append(s.observations[o.CaseID], o)
@@ -187,7 +192,7 @@ func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) error 
 	c.UpdatedAt = time.Now()
 	s.cases[o.CaseID] = c
 	s.auditLocked(o.CaseID, "rehearsal", o.ID, "", o.SubmittedBy, "提交彩排清单观察", c.Revision)
-	return s.persistLocked()
+	return s.persistLockedContext(ctx)
 }
 func (s *Store) Observations(caseID string) []rigging.Observation {
 	s.mu.Lock()
