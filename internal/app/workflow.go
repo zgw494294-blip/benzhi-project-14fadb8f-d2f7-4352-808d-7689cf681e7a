@@ -218,9 +218,7 @@ func (a *App) RecordObservation(caseID, actor string, o rigging.Observation) (ri
 	if err != nil {
 		return o, nil, err
 	}
-	if err = a.Store.AddObservation(judged, f); err != nil {
-		return o, nil, err
-	}
+	a.Store.AddObservation(judged, f)
 	_ = c
 	return judged, f, nil
 }

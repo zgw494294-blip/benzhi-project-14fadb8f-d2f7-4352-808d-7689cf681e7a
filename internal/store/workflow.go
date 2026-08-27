@@ -174,7 +174,7 @@ func (s *Store) AdoptScenario(caseID, id, requestID string, ev rigging.Evaluatio
 	return ev, s.persistLocked()
 }
 
-func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) error {
+func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.observations[o.CaseID] = append(s.observations[o.CaseID], o)
@@ -187,7 +187,7 @@ func (s *Store) AddObservation(o rigging.Observation, f *rigging.Finding) error 
 	c.UpdatedAt = time.Now()
 	s.cases[o.CaseID] = c
 	s.auditLocked(o.CaseID, "rehearsal", o.ID, "", o.SubmittedBy, "提交彩排清单观察", c.Revision)
-	return s.persistLocked()
+	_ = s.persistLocked()
 }
 func (s *Store) Observations(caseID string) []rigging.Observation {
 	s.mu.Lock()
